@@ -5,7 +5,6 @@ export interface FlowRouteConfig {
   rpcUrl: string;
   networkPassphrase: string;
   contractId: string | null;
-  soroswapRouterId: string | null;
 }
 
 function requireEnv(env: Record<string, string | undefined>, key: string): string {
@@ -29,7 +28,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     rpcUrl: requireEnv(env, "STELLAR_RPC_URL"),
     networkPassphrase: requireEnv(env, "STELLAR_NETWORK_PASSPHRASE"),
     contractId: env.FLOWROUTE_CONTRACT_ID ?? null,
-    soroswapRouterId: env.SOROSWAP_ROUTER_ID ?? null,
   };
 }
 
@@ -38,11 +36,4 @@ export function requireContractId(config: FlowRouteConfig): string {
     throw new Error("FLOWROUTE_CONTRACT_ID is not set, deploy the contract before calling this method");
   }
   return config.contractId;
-}
-
-export function requireSoroswapRouterId(config: FlowRouteConfig): string {
-  if (!config.soroswapRouterId) {
-    throw new Error("SOROSWAP_ROUTER_ID is not set");
-  }
-  return config.soroswapRouterId;
 }

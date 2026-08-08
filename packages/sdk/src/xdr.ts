@@ -1,5 +1,5 @@
 import { Address, ScInt, nativeToScVal, scValToBigInt, scValToNative, xdr } from "@stellar/stellar-sdk";
-import type { PayoutResult, Recipient } from "./types.js";
+import type { PayoutResult, Recipient } from "./types";
 
 export function i128ToScVal(value: bigint): xdr.ScVal {
   return new ScInt(value, { type: "i128" }).toI128();

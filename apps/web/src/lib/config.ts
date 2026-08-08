@@ -23,7 +23,6 @@ export function loadWebConfig(): FlowRouteConfig {
       "NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE",
     ),
     contractId: process.env.NEXT_PUBLIC_FLOWROUTE_CONTRACT_ID ?? null,
-    soroswapRouterId: process.env.NEXT_PUBLIC_SOROSWAP_ROUTER_ID ?? null,
   };
 }
 

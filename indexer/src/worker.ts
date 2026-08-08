@@ -1,7 +1,7 @@
 import { Address, rpc, xdr } from "@stellar/stellar-sdk";
 import { scValToI128 } from "@stellar-flowroute/sdk";
 import type { Pool } from "pg";
-import { loadIndexerConfig, type IndexerConfig } from "./config.js";
+import { loadIndexerConfig, type IndexerConfig } from "./config";
 import {
   applySchema,
   createPool,
@@ -9,7 +9,7 @@ import {
   setCursor,
   upsertBatch,
   upsertPayout,
-} from "./db.js";
+} from "./db";
 
 const EVENT_PAGE_SIZE = 200;
 const POLL_INTERVAL_MS = 5_000;

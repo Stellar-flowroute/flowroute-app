@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
-import type { IndexerConfig } from "./config.js";
+import type { IndexerConfig } from "./config";
 
 export interface PayoutRow {
   payoutId: bigint;

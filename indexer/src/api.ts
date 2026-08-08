@@ -2,8 +2,8 @@ import { serve } from "@hono/node-server";
 import { rpc } from "@stellar/stellar-sdk";
 import { Hono } from "hono";
 import type { Pool } from "pg";
-import type { IndexerConfig } from "./config.js";
-import { loadIndexerConfig } from "./config.js";
+import type { IndexerConfig } from "./config";
+import { loadIndexerConfig } from "./config";
 import {
   createPool,
   getBatch,
@@ -12,7 +12,7 @@ import {
   listBatchesBySender,
   type BatchRow,
   type PayoutRow,
-} from "./db.js";
+} from "./db";
 
 const DEFAULT_PORT = 3001;
 

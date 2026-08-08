@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Keypair, nativeToScVal, rpc, xdr } from "@stellar/stellar-sdk";
 import { i128ToScVal } from "@stellar-flowroute/sdk";
-import { parseBatchEvent, parsePayoutEvent } from "./worker.js";
+import { parseBatchEvent, parsePayoutEvent } from "./worker";
 
 function baseEvent(topic: xdr.ScVal[], value: xdr.ScVal): rpc.Api.EventResponse {
   return {

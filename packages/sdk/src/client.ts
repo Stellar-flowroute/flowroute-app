@@ -8,10 +8,10 @@ import {
   rpc,
   scValToNative,
 } from "@stellar/stellar-sdk";
-import type { FlowRouteConfig } from "./config.js";
-import { requireContractId } from "./config.js";
-import type { PayoutResult, Recipient, StellarAddress } from "./types.js";
-import { i128ToScVal, recipientsToScVal, scValToPayoutResults } from "./xdr.js";
+import type { FlowRouteConfig } from "./config";
+import { requireContractId } from "./config";
+import type { PayoutResult, Recipient, StellarAddress } from "./types";
+import { i128ToScVal, recipientsToScVal, scValToPayoutResults } from "./xdr";
 
 export function createRpcServer(config: FlowRouteConfig): rpc.Server {
   return new rpc.Server(config.rpcUrl, {
