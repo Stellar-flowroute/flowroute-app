@@ -7,6 +7,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc",
     "dev": "tsx src/worker.ts",
+    "dev:api": "tsx src/api.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "devDependencies": {
@@ -16,8 +17,10 @@
     "typescript": "5.6.3"
   },
   "dependencies": {
+    "@hono/node-server": "2.1.0",
     "@stellar-flowroute/sdk": "workspace:*",
     "@stellar/stellar-sdk": "16.2.0",
+    "hono": "4.13.1",
     "pg": "8.22.0"
   }
 }
