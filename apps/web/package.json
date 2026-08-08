@@ -1,0 +1,14 @@
+{
+  "name": "@stellar-flowroute/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
+}

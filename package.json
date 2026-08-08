@@ -1,0 +1,16 @@
+{
+  "name": "flowroute-app",
+  "private": true,
+  "version": "0.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "build": "pnpm -r build"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
+}
