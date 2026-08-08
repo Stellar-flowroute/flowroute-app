@@ -2,3 +2,5 @@ packages:
   - "packages/*"
   - "apps/*"
   - "indexer"
+allowBuilds:
+  esbuild: true
