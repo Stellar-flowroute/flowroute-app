@@ -4,5 +4,6 @@ packages:
   - "indexer"
 allowBuilds:
   esbuild: true
+  unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@types/pg@8.21.0'
