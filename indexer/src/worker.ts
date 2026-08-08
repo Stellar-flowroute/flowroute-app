@@ -1,4 +1,4 @@
-import { installCurlFetchFallback } from "@stellar-flowroute/sdk";
+import { installCurlFetchFallback } from "@stellar-flowroute/sdk/src/curl-fetch-fallback";
 installCurlFetchFallback();
 
 import { Address, rpc, xdr } from "@stellar/stellar-sdk";

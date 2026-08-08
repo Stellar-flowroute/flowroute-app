@@ -1,4 +1,4 @@
-import { installCurlFetchFallback } from "@stellar-flowroute/sdk";
+import { installCurlFetchFallback } from "@stellar-flowroute/sdk/src/curl-fetch-fallback";
 installCurlFetchFallback();
 
 import { serve } from "@hono/node-server";
