@@ -257,9 +257,9 @@ export default function PayoutPage() {
                       ? <span className="text-red-500">{row.quoteError}</span>
                       : row.amountOutPreview !== null
                         ? `${row.amountOutPreview.toString()} (impact ${row.priceImpactPct}%)`
-                        : "—"}
+                        : "n/a"}
                 </td>
-                <td className="p-2 text-[var(--color-text-muted)]">{row.destMin?.toString() ?? "—"}</td>
+                <td className="p-2 text-[var(--color-text-muted)]">{row.destMin?.toString() ?? "n/a"}</td>
                 <td className="p-2">
                   <button type="button" onClick={() => removeRow(row.id)} className="text-red-500 hover:underline">
                     remove
