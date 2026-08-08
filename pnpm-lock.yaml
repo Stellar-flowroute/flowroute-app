@@ -23,6 +23,12 @@ importers:
 
   indexer:
     dependencies:
+      '@stellar-flowroute/sdk':
+        specifier: workspace:*
+        version: link:../packages/sdk
+      '@stellar/stellar-sdk':
+        specifier: 16.2.0
+        version: 16.2.0(debug@4.4.3)
       pg:
         specifier: 8.22.0
         version: 8.22.0

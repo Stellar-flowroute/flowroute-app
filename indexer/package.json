@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc",
-    "dev": "tsx src/worker.ts"
+    "dev": "tsx src/worker.ts",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
   },
   "devDependencies": {
     "@types/node": "22.10.2",
@@ -15,6 +16,8 @@
     "typescript": "5.6.3"
   },
   "dependencies": {
+    "@stellar-flowroute/sdk": "workspace:*",
+    "@stellar/stellar-sdk": "16.2.0",
     "pg": "8.22.0"
   }
 }
