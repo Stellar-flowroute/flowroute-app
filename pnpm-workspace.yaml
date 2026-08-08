@@ -4,3 +4,5 @@ packages:
   - "indexer"
 allowBuilds:
   esbuild: true
+minimumReleaseAgeExclude:
+  - '@types/pg@8.21.0'
