@@ -11,3 +11,4 @@ export {
 } from "./xdr";
 export { createRpcServer, getPayoutCount, executeBatch } from "./client";
 export type { SignTransaction, ExecuteBatchParams } from "./client";
+export { installCurlFetchFallback } from "./curl-fetch-fallback";

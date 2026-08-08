@@ -1,3 +1,6 @@
+import { installCurlFetchFallback } from "@stellar-flowroute/sdk";
+installCurlFetchFallback();
+
 import { Address, rpc, xdr } from "@stellar/stellar-sdk";
 import { scValToI128 } from "@stellar-flowroute/sdk";
 import type { Pool } from "pg";

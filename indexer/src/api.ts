@@ -1,3 +1,6 @@
+import { installCurlFetchFallback } from "@stellar-flowroute/sdk";
+installCurlFetchFallback();
+
 import { serve } from "@hono/node-server";
 import { rpc } from "@stellar/stellar-sdk";
 import { Hono } from "hono";
