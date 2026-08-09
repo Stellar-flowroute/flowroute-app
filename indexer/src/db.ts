@@ -71,7 +71,10 @@ function rowToBatch(row: BatchColumns): BatchRow {
 const schemaPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "schema.sql");
 
 export function createPool(config: IndexerConfig): Pool {
-  return new Pool({ connectionString: config.databaseUrl });
+  return new Pool({
+    connectionString: config.databaseUrl,
+    ssl: config.databaseSsl ? { rejectUnauthorized: false } : undefined,
+  });
 }
 
 export async function applySchema(pool: Pool): Promise<void> {

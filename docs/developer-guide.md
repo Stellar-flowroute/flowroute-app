@@ -39,6 +39,7 @@ FLOWROUTE_CONTRACT_ID=
 
 ```
 DATABASE_URL=postgres://user:password@localhost:5432/flowroute
+DATABASE_SSL=0
 INDEXER_START_LEDGER=0
 ```
 
@@ -54,6 +55,12 @@ SOROSWAP_API_KEY=
 ```
 
 `SOROSWAP_API_KEY` is only needed for the payout page's quote preview, which calls the Soroswap SDK server-side from `apps/web/src/app/api/quote/route.ts`.
+
+## `DATABASE_SSL`
+
+Render's managed Postgres requires SSL and rejects plain connections. A local Postgres, for example the Docker instance used in local setup, typically does not speak SSL at all.
+
+Setting `DATABASE_SSL=1` makes `createPool` in `indexer/src/db.ts` pass `ssl: { rejectUnauthorized: false }` to the `pg` `Pool` config, matching Render's documented connection pattern. It is off by default, which is correct for local development. Set it to `1` in the indexer's Render environment.
 
 ## `FLOWROUTE_USE_CURL_FETCH`
 

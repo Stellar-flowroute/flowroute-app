@@ -1,5 +1,6 @@
 export interface IndexerConfig {
   databaseUrl: string;
+  databaseSsl: boolean;
   contractId: string;
   rpcUrl: string;
   startLedger: number;
@@ -21,6 +22,7 @@ export function loadIndexerConfig(env: Record<string, string | undefined> = proc
 
   return {
     databaseUrl: requireEnv(env, "DATABASE_URL"),
+    databaseSsl: env.DATABASE_SSL === "1",
     contractId: requireEnv(env, "FLOWROUTE_CONTRACT_ID"),
     rpcUrl: requireEnv(env, "STELLAR_RPC_URL"),
     startLedger,
