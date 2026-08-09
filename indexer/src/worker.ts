@@ -1,6 +1,3 @@
-import { installCurlFetchFallback } from "@stellar-flowroute/sdk/src/curl-fetch-fallback";
-installCurlFetchFallback();
-
 import { Address, rpc, xdr } from "@stellar/stellar-sdk";
 import { scValToI128 } from "@stellar-flowroute/sdk";
 import type { Pool } from "pg";
@@ -13,6 +10,20 @@ import {
   upsertBatch,
   upsertPayout,
 } from "./db";
+
+if (process.env.FLOWROUTE_USE_CURL_FETCH === "1") {
+  try {
+    const { installCurlFetchFallback } = await import(
+      "@stellar-flowroute/sdk/src/curl-fetch-fallback"
+    );
+    installCurlFetchFallback();
+  } catch (error) {
+    console.warn(
+      "FLOWROUTE_USE_CURL_FETCH is set but the curl fetch fallback module could not be loaded; continuing without it",
+      error,
+    );
+  }
+}
 
 const EVENT_PAGE_SIZE = 200;
 const POLL_INTERVAL_MS = 5_000;

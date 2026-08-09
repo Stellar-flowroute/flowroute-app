@@ -1,6 +1,3 @@
-import { installCurlFetchFallback } from "@stellar-flowroute/sdk/src/curl-fetch-fallback";
-installCurlFetchFallback();
-
 import { serve } from "@hono/node-server";
 import { rpc } from "@stellar/stellar-sdk";
 import { Hono } from "hono";
@@ -16,6 +13,20 @@ import {
   type BatchRow,
   type PayoutRow,
 } from "./db";
+
+if (process.env.FLOWROUTE_USE_CURL_FETCH === "1") {
+  try {
+    const { installCurlFetchFallback } = await import(
+      "@stellar-flowroute/sdk/src/curl-fetch-fallback"
+    );
+    installCurlFetchFallback();
+  } catch (error) {
+    console.warn(
+      "FLOWROUTE_USE_CURL_FETCH is set but the curl fetch fallback module could not be loaded; continuing without it",
+      error,
+    );
+  }
+}
 
 const DEFAULT_PORT = 3001;
 
