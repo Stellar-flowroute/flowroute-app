@@ -1,8 +1,6 @@
-# FlowRoute
+# flowroute-app
 
-FlowRoute is a batched, slippage protected FX payout tool on the Stellar network. A business funds one payout run, and the FlowRoute contract swaps the source asset into each recipient's chosen destination asset through Soroswap, enforcing a per recipient minimum received.
-
-This repository holds the application layer: a typed SDK for the FlowRoute contract, a Next.js dashboard, and an event indexer with a read API.
+flowroute-app is the application layer for FlowRoute, a payout tool for businesses that need to send money to many people at once, where each recipient may want a different currency. This repo holds a typed SDK for the FlowRoute contract, a Next.js payout dashboard, and an event indexer with a read API. It calls the on-chain contract that swaps assets through Soroswap, enforces the per-recipient minimum received, and records auditable settlement events. The Soroban contract itself lives in the sibling repo, flowroute-contract.
 
 ## Structure
 
