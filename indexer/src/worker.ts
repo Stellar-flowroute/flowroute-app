@@ -177,6 +177,7 @@ function fetchEventsPage(
 export async function ingestOnce(config: IndexerConfig, pool: Pool, server: rpc.Server): Promise<void> {
   const cursorLedger = await getCursor(pool);
   const startLedger = cursorLedger === null ? config.startLedger : Number(cursorLedger);
+  console.log("ingestOnce: cursorLedger =", cursorLedger, "startLedger =", startLedger);
 
   let pagingCursor: string | undefined;
   let highestLedgerProcessed = cursorLedger;
@@ -185,6 +186,7 @@ export async function ingestOnce(config: IndexerConfig, pool: Pool, server: rpc.
 
   for (;;) {
     const page = await withRetry(() => fetchEventsPage(server, config, startLedger, pagingCursor));
+    console.log("ingestOnce: fetched page, events.length =", page.events.length, "latestLedger =", page.latestLedger);
     latestKnownLedger = page.latestLedger;
 
     for (const event of page.events) {
@@ -202,10 +204,25 @@ export async function ingestOnce(config: IndexerConfig, pool: Pool, server: rpc.
     pagingCursor = page.cursor;
   }
 
+  let cursorToSet: bigint | null = null;
   if (sawEvents && highestLedgerProcessed !== null) {
-    await setCursor(pool, highestLedgerProcessed);
+    cursorToSet = highestLedgerProcessed;
+    console.log("ingestOnce: setCursor branch = sawEvents, value =", cursorToSet);
   } else if (latestKnownLedger !== null) {
-    await setCursor(pool, BigInt(latestKnownLedger));
+    cursorToSet = BigInt(latestKnownLedger);
+    console.log("ingestOnce: setCursor branch = latestKnownLedger fallback, value =", cursorToSet);
+  } else {
+    console.log("ingestOnce: no setCursor branch taken, sawEvents =", sawEvents, "latestKnownLedger =", latestKnownLedger);
+  }
+
+  if (cursorToSet !== null) {
+    try {
+      await setCursor(pool, cursorToSet);
+      console.log("ingestOnce: setCursor resolved");
+    } catch (error) {
+      console.error("ingestOnce: setCursor threw", error);
+      throw error;
+    }
   }
 }
 
