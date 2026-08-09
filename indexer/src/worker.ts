@@ -177,25 +177,16 @@ function fetchEventsPage(
 export async function ingestOnce(config: IndexerConfig, pool: Pool, server: rpc.Server): Promise<void> {
   const cursorLedger = await getCursor(pool);
   const startLedger = cursorLedger === null ? config.startLedger : Number(cursorLedger);
-  console.log("ingestOnce: cursorLedger =", cursorLedger, "startLedger =", startLedger);
 
   let pagingCursor: string | undefined;
-  let highestLedgerProcessed = cursorLedger;
-  let sawEvents = false;
   let latestKnownLedger: number | null = null;
 
   for (;;) {
     const page = await withRetry(() => fetchEventsPage(server, config, startLedger, pagingCursor));
-    console.log("ingestOnce: fetched page, events.length =", page.events.length, "latestLedger =", page.latestLedger);
     latestKnownLedger = page.latestLedger;
 
     for (const event of page.events) {
       await processEvent(pool, event);
-      sawEvents = true;
-      const ledger = BigInt(event.ledger);
-      if (highestLedgerProcessed === null || ledger > highestLedgerProcessed) {
-        highestLedgerProcessed = ledger;
-      }
     }
 
     if (page.events.length < EVENT_PAGE_SIZE) {
@@ -204,25 +195,8 @@ export async function ingestOnce(config: IndexerConfig, pool: Pool, server: rpc.
     pagingCursor = page.cursor;
   }
 
-  let cursorToSet: bigint | null = null;
-  if (sawEvents && highestLedgerProcessed !== null) {
-    cursorToSet = highestLedgerProcessed;
-    console.log("ingestOnce: setCursor branch = sawEvents, value =", cursorToSet);
-  } else if (latestKnownLedger !== null) {
-    cursorToSet = BigInt(latestKnownLedger);
-    console.log("ingestOnce: setCursor branch = latestKnownLedger fallback, value =", cursorToSet);
-  } else {
-    console.log("ingestOnce: no setCursor branch taken, sawEvents =", sawEvents, "latestKnownLedger =", latestKnownLedger);
-  }
-
-  if (cursorToSet !== null) {
-    try {
-      await setCursor(pool, cursorToSet);
-      console.log("ingestOnce: setCursor resolved");
-    } catch (error) {
-      console.error("ingestOnce: setCursor threw", error);
-      throw error;
-    }
+  if (latestKnownLedger !== null) {
+    await setCursor(pool, BigInt(latestKnownLedger));
   }
 }
 
@@ -244,23 +218,15 @@ function startHealthServer(pool: Pool, port: number): void {
 }
 
 export async function runWorker(config: IndexerConfig, pool: Pool = createPool(config)): Promise<void> {
-  console.log("applying schema");
   await applySchema(pool);
-  console.log("schema applied");
-
-  console.log("creating rpc server");
   const server = new rpc.Server(config.rpcUrl, { allowHttp: config.rpcUrl.startsWith("http://") });
-  console.log("rpc server created");
 
   const port = Number(process.env.PORT) || DEFAULT_PORT;
-  console.log("starting health server");
   startHealthServer(pool, port);
 
   for (;;) {
-    console.log("starting poll cycle");
     try {
       await ingestOnce(config, pool, server);
-      console.log("poll cycle complete");
     } catch (error) {
       console.error("ingestion pass failed, will retry next poll", error);
     }
