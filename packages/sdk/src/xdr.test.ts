@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
-import type { PayoutResult, Recipient } from "./types";
+import type { PayoutResult, Recipient } from "./types.js";
 import {
   i128ToScVal,
   recipientToScVal,
@@ -9,7 +9,7 @@ import {
   scValToI128,
   scValToPayoutResult,
   scValToPayoutResults,
-} from "./xdr";
+} from "./xdr.js";
 
 const I128_MIN = -(2n ** 127n);
 const I128_MAX = 2n ** 127n - 1n;
