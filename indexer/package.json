@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "build": "tsc",
+    "build": "tsc && cp src/schema.sql dist/schema.sql",
     "dev": "tsx src/worker.ts",
     "dev:api": "tsx src/api.ts",
     "test": "node --import tsx --test \"src/**/*.test.ts\""
