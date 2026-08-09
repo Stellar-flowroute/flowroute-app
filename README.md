@@ -6,6 +6,14 @@ flowroute-app is the application layer for FlowRoute, a payout tool for business
 
 **Documentation:** https://hollujay-labs.gitbook.io/flowroute/
 
+## Live deployment
+
+Web app: https://flowroute-app.vercel.app
+
+Indexer API: https://flowroute-app.onrender.com (health check at `/health`)
+
+Both the web app and the indexer, including the worker that ingests new on-chain events, are live and running on free hosting tiers.
+
 ## Structure
 
 This is a pnpm workspace with three packages:
