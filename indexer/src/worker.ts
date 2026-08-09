@@ -1,5 +1,7 @@
+import { serve } from "@hono/node-server";
 import { Address, rpc, xdr } from "@stellar/stellar-sdk";
 import { scValToI128 } from "@stellar-flowroute/sdk";
+import { Hono } from "hono";
 import type { Pool } from "pg";
 import { loadIndexerConfig, type IndexerConfig } from "./config.js";
 import {
@@ -29,6 +31,7 @@ const EVENT_PAGE_SIZE = 200;
 const POLL_INTERVAL_MS = 5_000;
 const INITIAL_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 60_000;
+const DEFAULT_PORT = 3001;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -206,9 +209,29 @@ export async function ingestOnce(config: IndexerConfig, pool: Pool, server: rpc.
   }
 }
 
+// Render's Background Worker service type has no free tier, but its Web Service type does, and a
+// Web Service only requires that the process bind to a port and answer HTTP requests -- it doesn't
+// have to actually be a web server. This endpoint exists solely so this worker can satisfy that
+// requirement and deploy as a free Web Service instead of a paid Background Worker.
+function startHealthServer(pool: Pool, port: number): void {
+  const app = new Hono();
+  app.get("/health", async (c) => {
+    const lastProcessedLedger = await getCursor(pool);
+    return c.json({
+      status: "ok",
+      lastProcessedLedger: lastProcessedLedger?.toString() ?? null,
+    });
+  });
+  serve({ fetch: app.fetch, port });
+  console.log(`flowroute indexer worker health server listening on port ${port}`);
+}
+
 export async function runWorker(config: IndexerConfig, pool: Pool = createPool(config)): Promise<void> {
   await applySchema(pool);
   const server = new rpc.Server(config.rpcUrl, { allowHttp: config.rpcUrl.startsWith("http://") });
+
+  const port = Number(process.env.PORT) || DEFAULT_PORT;
+  startHealthServer(pool, port);
 
   for (;;) {
     try {
