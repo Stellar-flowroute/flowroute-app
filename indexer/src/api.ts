@@ -2,8 +2,8 @@ import { serve } from "@hono/node-server";
 import { rpc } from "@stellar/stellar-sdk";
 import { Hono } from "hono";
 import type { Pool } from "pg";
-import type { IndexerConfig } from "./config";
-import { loadIndexerConfig } from "./config";
+import type { IndexerConfig } from "./config.js";
+import { loadIndexerConfig } from "./config.js";
 import {
   createPool,
   getBatch,
@@ -12,12 +12,12 @@ import {
   listBatchesBySender,
   type BatchRow,
   type PayoutRow,
-} from "./db";
+} from "./db.js";
 
 if (process.env.FLOWROUTE_USE_CURL_FETCH === "1") {
   try {
     const { installCurlFetchFallback } = await import(
-      "@stellar-flowroute/sdk/src/curl-fetch-fallback"
+      "@stellar-flowroute/sdk/dist/curl-fetch-fallback.js"
     );
     installCurlFetchFallback();
   } catch (error) {
