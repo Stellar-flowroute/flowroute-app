@@ -1,0 +1,91 @@
+<svg width="1600" height="420" viewBox="0 0 1600 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+<!-- Background -->
+<rect width="1600" height="420" fill="#FAF8F5"></rect>
+
+<!-- Accent Shapes -->
+<circle cx="1450" cy="-50" r="220" fill="#DDEEEA"></circle>
+<circle cx="1550" cy="420" r="180" fill="#E9E3D5"></circle>
+
+<!-- Left Brand Block -->
+<rect x="0" y="0" width="14" height="420" fill="#0F766E"></rect>
+
+<!-- Logo -->
+<g transform="translate(80 70)">
+  <circle cx="70" cy="70" r="70" fill="#0F766E"></circle>
+  <path d="M45 55H95L70 80L95 105H78L53 80V105H45V55Z" fill="#FAF8F5"></path>
+</g>
+
+<!-- Title -->
+<text x="260" y="120" font-family="Inter,Arial,sans-serif" font-size="60" font-weight="700" fill="#111827">
+FlowRoute App
+</text>
+
+<text x="262" y="162" font-family="Inter,Arial,sans-serif" font-size="20" letter-spacing="4" fill="#0F766E">
+MULTI-CURRENCY PAYOUT PLATFORM
+</text>
+
+<!-- Main Message -->
+<text x="260" y="235" font-family="Inter,Arial,sans-serif" font-size="34" font-weight="600" fill="#111827">
+Pay Hundreds. Deliver in Their Currency.
+</text>
+
+<text x="260" y="280" font-family="Inter,Arial,sans-serif" font-size="22" fill="#4B5563">
+Dashboard, SDK, Indexer and Settlement History
+</text>
+
+<text x="260" y="315" font-family="Inter,Arial,sans-serif" font-size="22" fill="#4B5563">
+for Soroban-powered global payouts.
+</text>
+
+<!-- Right Side UI Mockup -->
+<g transform="translate(1010 60)">
+
+  <!-- Browser -->
+  <rect x="0" y="0" width="470" height="280" rx="20" fill="white" stroke="#D6D3D1"></rect>
+
+  <rect x="0" y="0" width="470" height="40" rx="20" fill="#F1F5F9"></rect>
+  <circle cx="25" cy="20" r="5" fill="#0F766E"></circle>
+  <circle cx="45" cy="20" r="5" fill="#D97706"></circle>
+  <circle cx="65" cy="20" r="5" fill="#6B7280"></circle>
+
+  <!-- Payout Rows -->
+  <rect x="35" y="80" width="390" height="42" rx="10" fill="#F8FAFC"></rect>
+  <rect x="35" y="135" width="390" height="42" rx="10" fill="#F8FAFC"></rect>
+  <rect x="35" y="190" width="390" height="42" rx="10" fill="#F8FAFC"></rect>
+
+  <!-- Currency Tags -->
+  <rect x="330" y="90" width="60" height="22" rx="11" fill="#DDEEEA"></rect>
+  <rect x="330" y="145" width="60" height="22" rx="11" fill="#E9E3D5"></rect>
+  <rect x="330" y="200" width="60" height="22" rx="11" fill="#DDEEEA"></rect>
+
+  <text x="345" y="106" font-size="12" fill="#0F766E">USD</text>
+  <text x="345" y="161" font-size="12" fill="#A16207">EUR</text>
+  <text x="345" y="216" font-size="12" fill="#0F766E">NGN</text>
+
+</g>
+
+<!-- Architecture Flow -->
+<line x1="90" y1="365" x2="1510" y2="365" stroke="#D6D3D1"></line>
+
+<text x="90" y="395" font-family="Inter,Arial,sans-serif" font-size="16" fill="#0F766E">
+SDK
+</text>
+
+<text x="340" y="395" font-family="Inter,Arial,sans-serif" font-size="16" fill="#0F766E">
+NEXT.JS DASHBOARD
+</text>
+
+<text x="720" y="395" font-family="Inter,Arial,sans-serif" font-size="16" fill="#0F766E">
+EVENT INDEXER
+</text>
+
+<text x="1080" y="395" font-family="Inter,Arial,sans-serif" font-size="16" fill="#0F766E">
+SETTLEMENT API
+</text>
+
+<text x="1340" y="395" font-family="Inter,Arial,sans-serif" font-size="16" fill="#0F766E">
+SOROBAN
+</text>
+
+</svg>
