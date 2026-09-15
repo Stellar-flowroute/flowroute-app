@@ -32,18 +32,29 @@ const POLL_INTERVAL_MS = 5_000;
 const INITIAL_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 60_000;
 const DEFAULT_PORT = 3001;
+// Retries are bounded so a fetch that keeps failing ends the pass instead of hanging inside it. The pass then fails
+// without touching the cursor, and the next poll retries the same ledger range from the persisted cursor.
+const DEFAULT_MAX_FETCH_ATTEMPTS = 5;
+
+export interface IngestOptions {
+  maxFetchAttempts?: number;
+  initialBackoffMs?: number;
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts: number, initialBackoffMs: number): Promise<T> {
   let attempt = 0;
   for (;;) {
     try {
       return await fn();
     } catch (error) {
-      const backoff = Math.min(INITIAL_BACKOFF_MS * 2 ** attempt, MAX_BACKOFF_MS);
+      if (attempt + 1 >= maxAttempts) {
+        throw error;
+      }
+      const backoff = Math.min(initialBackoffMs * 2 ** attempt, MAX_BACKOFF_MS);
       attempt += 1;
       console.error(`rpc call failed, retrying in ${backoff}ms`, error);
       await sleep(backoff);
@@ -174,16 +185,42 @@ function fetchEventsPage(
   return server.getEvents({ filters, startLedger, limit: EVENT_PAGE_SIZE });
 }
 
-export async function ingestOnce(config: IndexerConfig, pool: Pool, server: rpc.Server): Promise<void> {
+// Cursor invariant: the persisted cursor is only written after a pass has fetched every page in its range, processed
+// every event in those pages, and paged contiguously. It only ever moves forward, and never past the highest ledger
+// the pass actually scanned. A latestLedger reported by RPC is not by itself proof that the ledgers below it were
+// ingested, so any failure leaves the cursor untouched and the next pass retries the same range.
+export async function ingestOnce(
+  config: IndexerConfig,
+  pool: Pool,
+  server: rpc.Server,
+  options: IngestOptions = {},
+): Promise<void> {
+  const maxFetchAttempts = options.maxFetchAttempts ?? DEFAULT_MAX_FETCH_ATTEMPTS;
+  const initialBackoffMs = options.initialBackoffMs ?? INITIAL_BACKOFF_MS;
+
   const cursorLedger = await getCursor(pool);
   const startLedger = cursorLedger === null ? config.startLedger : Number(cursorLedger);
 
   let pagingCursor: string | undefined;
-  let latestKnownLedger: number | null = null;
+  let scannedThrough: number | null = null;
 
   for (;;) {
-    const page = await withRetry(() => fetchEventsPage(server, config, startLedger, pagingCursor));
-    latestKnownLedger = page.latestLedger;
+    const page = await withRetry(
+      () => fetchEventsPage(server, config, startLedger, pagingCursor),
+      maxFetchAttempts,
+      initialBackoffMs,
+    );
+
+    // A node that cannot serve the requested range is not evidence that the range holds no events. Refuse to move the
+    // cursor instead of recording coverage the pass never had.
+    if (page.latestLedger < startLedger) {
+      throw new Error(
+        `rpc reported latest ledger ${page.latestLedger}, behind the cursor at ${startLedger}; ` +
+          `refusing to advance the cursor over an unscanned ledger range`,
+      );
+    }
+
+    scannedThrough = scannedThrough === null ? page.latestLedger : Math.max(scannedThrough, page.latestLedger);
 
     for (const event of page.events) {
       await processEvent(pool, event);
@@ -192,12 +229,23 @@ export async function ingestOnce(config: IndexerConfig, pool: Pool, server: rpc.
     if (page.events.length < EVENT_PAGE_SIZE) {
       break;
     }
+
+    // A repeated cursor would make the loop spin without covering new ledgers, so treat it as a broken page and stop.
+    if (pagingCursor !== undefined && page.cursor === pagingCursor) {
+      throw new Error(
+        `rpc returned the repeated paging cursor ${page.cursor}; refusing to advance the cursor over an unscanned ledger range`,
+      );
+    }
     pagingCursor = page.cursor;
   }
 
-  if (latestKnownLedger !== null) {
-    await setCursor(pool, BigInt(latestKnownLedger));
+  if (scannedThrough === null) {
+    return;
   }
+
+  const scanned = BigInt(scannedThrough);
+  const nextCursor = cursorLedger !== null && cursorLedger > scanned ? cursorLedger : scanned;
+  await setCursor(pool, nextCursor);
 }
 
 // Render's Background Worker service type has no free tier, but its Web Service type does, and a
