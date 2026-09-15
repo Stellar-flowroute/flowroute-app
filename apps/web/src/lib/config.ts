@@ -1,4 +1,4 @@
-import type { FlowRouteConfig, StellarNetwork } from "@stellar-flowroute/sdk";
+import { DEFAULT_FLOWROUTE_CONTRACT_ID, type FlowRouteConfig, type StellarNetwork } from "@stellar-flowroute/sdk";
 
 function requireEnv(value: string | undefined, name: string): string {
   if (!value) {
@@ -22,7 +22,8 @@ export function loadWebConfig(): FlowRouteConfig {
       process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE,
       "NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE",
     ),
-    contractId: process.env.NEXT_PUBLIC_FLOWROUTE_CONTRACT_ID ?? null,
+    // Falls back to the current verified testnet deployment when the app is built without an explicit contract ID.
+    contractId: process.env.NEXT_PUBLIC_FLOWROUTE_CONTRACT_ID ?? DEFAULT_FLOWROUTE_CONTRACT_ID,
   };
 }
 

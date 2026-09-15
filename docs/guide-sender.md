@@ -13,11 +13,15 @@ You can add recipients to a payout run in two ways:
 - **Manually**, one row at a time, entering each recipient's Stellar address, destination asset (as a token contract address), and the amount of the source asset allocated to them.
 - **By CSV upload**, a file with one recipient per line in the form `address,dest_asset,amount_in`. An optional header row starting with `address,` is ignored if present.
 
-Every recipient needs an address, a destination asset, and an amount before you can fetch quotes or submit the run.
+Every recipient needs an address, a destination asset, and an amount before you can fetch quotes or submit the run. Amounts are entered in base units and must be greater than zero, and addresses and assets are checked before any quote is requested or any payout is simulated.
+
+## Batch size
+
+One payout run holds at most six recipients (`MAX_BATCH_RECIPIENTS`). The Add recipient button stops at six, and a CSV with more rows is rejected on upload, so you can never build a batch the contract would refuse. To pay more people than that, split them across consecutive runs.
 
 ## Slippage tolerance
 
-The slippage tolerance field, set in basis points, controls how far the actual amount received is allowed to fall short of the quoted amount before that recipient's swap is treated as unable to proceed. When you fetch quotes, FlowRoute takes the quoted amount out for each recipient and reduces it by your slippage tolerance to compute that recipient's minimum received. This minimum is enforced on-chain during the payout run, not just checked client-side.
+The slippage tolerance field, set in basis points, controls how far the actual amount received is allowed to fall short of the quoted amount before that recipient's swap is treated as unable to proceed. When you fetch quotes, FlowRoute takes the quoted amount out for each recipient and reduces it by your slippage tolerance to compute that recipient's minimum received. That minimum always stays positive, even at a high tolerance on a tiny quoted amount, because the contract requires a positive floor. This minimum is enforced on-chain during the payout run, not just checked client-side.
 
 A lower slippage tolerance protects recipients from receiving less than expected, but makes an individual swap more likely to fail if the price moves before your transaction confirms. A higher tolerance makes swaps more likely to succeed, at the cost of a lower guaranteed floor.
 

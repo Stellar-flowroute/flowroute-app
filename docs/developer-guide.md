@@ -18,7 +18,7 @@ This page covers local setup for `flowroute-app` and the SDK and indexer API sur
    cp apps/web/.env.example apps/web/.env.local
    ```
 
-3. Fill in the deployed testnet contract ID (see [Contract reference](contract-reference.md)) as `FLOWROUTE_CONTRACT_ID` in `packages/sdk/.env.local` and `indexer/.env.local`, and as `NEXT_PUBLIC_FLOWROUTE_CONTRACT_ID` in `apps/web/.env.local`. Set `DATABASE_URL` in `indexer/.env.local` to your local Postgres connection string, and `SOROSWAP_API_KEY` in `apps/web/.env.local` if you want the payout page's quote feature to work.
+3. The `.env.example` files already point at the current verified testnet contract (see [Contract reference](contract-reference.md)), so the copied files work as-is; `packages/sdk` and `apps/web` also fall back to that deployment when the contract ID is left unset. Set `DATABASE_URL` in `indexer/.env.local` to your local Postgres connection string, and `SOROSWAP_API_KEY` in `apps/web/.env.local` if you want the payout page's quote feature to work. The indexer requires `FLOWROUTE_CONTRACT_ID` to be set explicitly; keep it at the example value unless you are indexing a different deployment.
 
 4. Start Postgres locally, for example with Docker.
 
@@ -32,8 +32,10 @@ This page covers local setup for `flowroute-app` and the SDK and indexer API sur
 STELLAR_NETWORK=testnet
 STELLAR_RPC_URL=https://soroban-testnet.stellar.org
 STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
-FLOWROUTE_CONTRACT_ID=
+FLOWROUTE_CONTRACT_ID=CBB3UVMGMFVWLF6ZVMQYRQDWOXZUWNW4SD6SERG3RMLFXMWLZNOZ767U
 ```
+
+`FLOWROUTE_CONTRACT_ID` is the current FlowRoute Router deployment on testnet. In `packages/sdk`, `loadConfig` falls back to `DEFAULT_FLOWROUTE_CONTRACT_ID`, which holds the same address, when the variable is unset; leaving it empty (`FLOWROUTE_CONTRACT_ID=`) in a loaded `.env.local` still throws, so an environment can opt out of the default deliberately. `indexer` has no default and requires the variable.
 
 `indexer/.env.example` additionally has:
 
@@ -49,10 +51,12 @@ INDEXER_START_LEDGER=0
 NEXT_PUBLIC_STELLAR_NETWORK=testnet
 NEXT_PUBLIC_STELLAR_RPC_URL=https://soroban-testnet.stellar.org
 NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
-NEXT_PUBLIC_FLOWROUTE_CONTRACT_ID=
+NEXT_PUBLIC_FLOWROUTE_CONTRACT_ID=CBB3UVMGMFVWLF6ZVMQYRQDWOXZUWNW4SD6SERG3RMLFXMWLZNOZ767U
 NEXT_PUBLIC_INDEXER_API_URL=http://localhost:3001
 SOROSWAP_API_KEY=
 ```
+
+`NEXT_PUBLIC_FLOWROUTE_CONTRACT_ID` is the same current testnet deployment, and `loadWebConfig` falls back to `DEFAULT_FLOWROUTE_CONTRACT_ID` from `packages/sdk` when it is unset.
 
 `SOROSWAP_API_KEY` is only needed for the payout page's quote preview, which calls the Soroswap SDK server-side from `apps/web/src/app/api/quote/route.ts`.
 
@@ -101,7 +105,11 @@ type SignTransaction = (
 
 `signTransaction` is wallet-agnostic: it takes an unsigned transaction XDR and must return the signed transaction XDR. `apps/web` implements this with Freighter.
 
-Also exported: `loadConfig`, `requireContractId`, the `FlowRouteConfig` and `StellarNetwork` types, the `Recipient` and `PayoutResult` types, and the low-level XDR conversion helpers (`i128ToScVal`, `scValToI128`, `recipientToScVal`, `recipientsToScVal`, `scValToPayoutResult`, `scValToPayoutResults`).
+`executeBatch` validates the batch locally before it touches the network. It rejects a list longer than `MAX_BATCH_RECIPIENTS` (6), an empty list, a malformed sender or `sourceAsset`, a malformed recipient address or `dest_asset`, a non-bigint, zero, or negative `amount_in` or `dest_min`, and a `totalSourceAmount` that is not exactly the sum of the recipient allocations. Every monetary value stays a `bigint` in base units; nothing is converted through a float.
+
+Also exported for callers that validate their own input, like the web app: `MAX_BATCH_RECIPIENTS`, `isValidStellarAddress`, `isValidContractAddress`, `assertPositiveAmount`, `validateRecipients`, `validateTotalSourceAmount`, `sumRecipientAmounts`, and `validateExecuteBatchParams`.
+
+Also exported: `loadConfig`, `requireContractId`, `DEFAULT_FLOWROUTE_CONTRACT_ID` (the current verified testnet deployment), the `FlowRouteConfig` and `StellarNetwork` types, the `Recipient` and `PayoutResult` types, and the low-level XDR conversion helpers (`i128ToScVal`, `scValToI128`, `recipientToScVal`, `recipientsToScVal`, `scValToPayoutResult`, `scValToPayoutResults`).
 
 ## API reference
 

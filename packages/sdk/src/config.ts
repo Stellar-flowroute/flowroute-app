@@ -1,3 +1,7 @@
+// The current verified FlowRoute Router deployment on testnet, used when FLOWROUTE_CONTRACT_ID is unset. An explicitly
+// empty value still fails requireContractId, so targeting another deployment stays deliberate.
+export const DEFAULT_FLOWROUTE_CONTRACT_ID = "CBB3UVMGMFVWLF6ZVMQYRQDWOXZUWNW4SD6SERG3RMLFXMWLZNOZ767U";
+
 export type StellarNetwork = "testnet" | "mainnet";
 
 export interface FlowRouteConfig {
@@ -27,7 +31,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     network: parseNetwork(requireEnv(env, "STELLAR_NETWORK")),
     rpcUrl: requireEnv(env, "STELLAR_RPC_URL"),
     networkPassphrase: requireEnv(env, "STELLAR_NETWORK_PASSPHRASE"),
-    contractId: env.FLOWROUTE_CONTRACT_ID ?? null,
+    contractId: env.FLOWROUTE_CONTRACT_ID ?? DEFAULT_FLOWROUTE_CONTRACT_ID,
   };
 }
 

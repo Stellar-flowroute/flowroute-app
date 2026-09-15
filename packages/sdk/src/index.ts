@@ -1,5 +1,5 @@
 export type { StellarNetwork, FlowRouteConfig } from "./config.js";
-export { loadConfig, requireContractId } from "./config.js";
+export { DEFAULT_FLOWROUTE_CONTRACT_ID, loadConfig, requireContractId } from "./config.js";
 export type { StellarAddress, Recipient, PayoutResult } from "./types.js";
 export type { ExecuteBatchValidationInput } from "./validation.js";
 export {

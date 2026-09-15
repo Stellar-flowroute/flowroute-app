@@ -40,7 +40,7 @@ The on-chain contract itself lives in the sibling repository [flowroute-contract
    cp apps/web/.env.example apps/web/.env.local
    ```
 
-   Fill in `FLOWROUTE_CONTRACT_ID` / `NEXT_PUBLIC_FLOWROUTE_CONTRACT_ID` with the testnet contract address from [Contract addresses](#contract-addresses) below, and `DATABASE_URL` in `indexer/.env.local` with your local Postgres connection string.
+   The copied files already reference the current testnet contract address from [Contract addresses](#contract-addresses) below, so `FLOWROUTE_CONTRACT_ID` / `NEXT_PUBLIC_FLOWROUTE_CONTRACT_ID` only need changing if you are targeting a different deployment. Set `DATABASE_URL` in `indexer/.env.local` to your local Postgres connection string.
 
 3. Start Postgres (any local instance works, for example via your system package manager or Docker):
 
@@ -80,12 +80,16 @@ This should not be necessary in a normal hosted environment.
 
 ## Contract addresses
 
-Testnet:
+Testnet, current deployment:
 
 | Contract | Address |
 | --- | --- |
-| FlowRoute Router | `CBDWWJOW25KPUID432RZXFIPLHRYZY5KIXBT7FMC2L6LHFOITBMUX5LE` |
+| FlowRoute Router | `CBB3UVMGMFVWLF6ZVMQYRQDWOXZUWNW4SD6SERG3RMLFXMWLZNOZ767U` |
 | Soroswap Router (called by FlowRoute) | `CCJUD55AG6W5HAI5LRVNKAE5WDP5XGZBUDS5WNTIVDU7O264UZZE7BRD` |
+
+The FlowRoute Router address is the deployed value for `FLOWROUTE_CONTRACT_ID` / `NEXT_PUBLIC_FLOWROUTE_CONTRACT_ID`. The Soroswap Router address is passed to the contract's `initialize(admin, swap_router)` call, not configured as an environment variable. A payout run accepts at most six recipients (`MAX_BATCH_RECIPIENTS`), and each recipient's minimum received (`dest_min`) must be positive.
+
+Superseded deployment, prior interface (`initialize(admin)`, no `swap_router`), kept for reference only: `CBDWWJOW25KPUID432RZXFIPLHRYZY5KIXBT7FMC2L6LHFOITBMUX5LE`.
 
 ## Contributing
 
