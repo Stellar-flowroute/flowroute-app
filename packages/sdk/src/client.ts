@@ -11,6 +11,7 @@ import {
 import type { FlowRouteConfig } from "./config.js";
 import { requireContractId } from "./config.js";
 import type { PayoutResult, Recipient, StellarAddress } from "./types.js";
+import { validateExecuteBatchParams } from "./validation.js";
 import { i128ToScVal, recipientsToScVal, scValToPayoutResults } from "./xdr.js";
 
 export function createRpcServer(config: FlowRouteConfig): rpc.Server {
@@ -71,6 +72,9 @@ export async function executeBatch(
   params: ExecuteBatchParams,
   server: rpc.Server = createRpcServer(config),
 ): Promise<PayoutResult[]> {
+  // Validate the whole batch locally first, so a malformed address, asset, amount, or total never reaches the network.
+  validateExecuteBatchParams(params);
+
   const contract = new Contract(requireContractId(config));
   const account = await server.getAccount(params.sender);
 

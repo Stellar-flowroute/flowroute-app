@@ -1,19 +1,26 @@
 "use client";
 
-import { executeBatch, type PayoutResult, type Recipient } from "@stellar-flowroute/sdk";
-import { useMemo, useState, type ChangeEvent } from "react";
+import { MAX_BATCH_RECIPIENTS, executeBatch, type PayoutResult } from "@stellar-flowroute/sdk";
+import { useState, type ChangeEvent } from "react";
+import {
+  buildBatch,
+  canAddRecipient,
+  draftTotalAmountIn,
+  parseAmountIn,
+  validateDestinationAsset,
+  validateRecipientAddress,
+  validateSourceAsset,
+  type BuiltBatch,
+  type RecipientDraft,
+} from "@/lib/batch";
 import { parseRecipientsCsv } from "@/lib/csv";
 import { loadWebConfig } from "@/lib/config";
 import { truncateAddress } from "@/lib/format";
 import { applySlippage, fetchQuote } from "@/lib/quote";
 import { connectWallet, signWithFreighter } from "@/lib/wallet";
 
-interface RecipientRow {
+interface RecipientRow extends RecipientDraft {
   id: string;
-  address: string;
-  destAsset: string;
-  amountIn: string;
-  destMin: bigint | null;
   amountOutPreview: bigint | null;
   priceImpactPct: string | null;
   quoting: boolean;
@@ -48,22 +55,15 @@ export default function PayoutPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [results, setResults] = useState<PayoutResult[] | null>(null);
 
-  const totalSourceAmount = useMemo(() => {
-    return rows.reduce((sum, row) => {
-      try {
-        return sum + BigInt(row.amountIn || "0");
-      } catch {
-        return sum;
-      }
-    }, 0n);
-  }, [rows]);
+  const totalSourceAmount = draftTotalAmountIn(rows);
 
   function updateRow(id: string, patch: Partial<RecipientRow>) {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   }
 
+  // The contract accepts at most MAX_BATCH_RECIPIENTS recipients, so a seventh row is never created.
   function addRow() {
-    setRows((current) => [...current, newRow()]);
+    setRows((current) => (canAddRecipient(current.length) ? [...current, newRow()] : current));
   }
 
   function removeRow(id: string) {
@@ -79,6 +79,7 @@ export default function PayoutPage() {
     try {
       const text = await file.text();
       const parsed = parseRecipientsCsv(text);
+      setSubmitError(null);
       setRows(
         parsed.map((entry) => ({
           ...newRow(),
@@ -97,14 +98,23 @@ export default function PayoutPage() {
       setSubmitError("source asset is required before fetching quotes");
       return;
     }
+    try {
+      validateSourceAsset(sourceAsset);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "invalid source asset");
+      return;
+    }
     setSubmitError(null);
     for (const row of rows) {
-      if (!row.destAsset || !row.amountIn) {
+      if (!row.address && !row.destAsset && !row.amountIn) {
         continue;
       }
       updateRow(row.id, { quoting: true, quoteError: null });
       try {
-        const amountIn = BigInt(row.amountIn);
+        // Malformed rows are rejected here, before the quote request leaves the browser.
+        validateRecipientAddress(row.address);
+        validateDestinationAsset(row.destAsset);
+        const amountIn = parseAmountIn(row.amountIn);
         const preview = await fetchQuote(sourceAsset, row.destAsset, amountIn);
         const destMin = applySlippage(preview.amountOut, slippageBps);
         updateRow(row.id, {
@@ -114,8 +124,12 @@ export default function PayoutPage() {
           destMin,
         });
       } catch (err) {
+        // Drop any stale quote for this row so it cannot be submitted against a previous price.
         updateRow(row.id, {
           quoting: false,
+          amountOutPreview: null,
+          priceImpactPct: null,
+          destMin: null,
           quoteError: err instanceof Error ? err.message : "quote failed",
         });
       }
@@ -130,21 +144,14 @@ export default function PayoutPage() {
       setSubmitError("source asset is required");
       return;
     }
-    const recipients: Recipient[] = [];
-    for (const row of rows) {
-      if (!row.address || !row.destAsset || !row.amountIn || row.destMin === null) {
-        setSubmitError("every recipient needs an address, destination asset, amount, and a fetched quote");
-        return;
-      }
-      recipients.push({
-        address: row.address,
-        dest_asset: row.destAsset,
-        dest_min: row.destMin,
-        amount_in: BigInt(row.amountIn),
-      });
-    }
-    if (recipients.length === 0) {
-      setSubmitError("add at least one recipient");
+
+    // Validate the whole batch client-side before the wallet is touched or anything is simulated on-chain.
+    let batch: BuiltBatch;
+    try {
+      validateSourceAsset(sourceAsset);
+      batch = buildBatch(rows);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "invalid payout batch");
       return;
     }
 
@@ -160,8 +167,8 @@ export default function PayoutPage() {
       const payoutResults = await executeBatch(config, {
         sender,
         sourceAsset,
-        recipients,
-        totalSourceAmount,
+        recipients: batch.recipients,
+        totalSourceAmount: batch.totalSourceAmount,
         signTransaction: async (xdr, opts) => {
           setStatus("awaiting-signature");
           const signed = await signWithFreighter(xdr, opts);
@@ -275,10 +282,14 @@ export default function PayoutPage() {
         <button
           type="button"
           onClick={addRow}
-          className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm"
+          disabled={!canAddRecipient(rows.length)}
+          className="rounded-md border border-[var(--color-border)] px-3 py-1.5 text-sm disabled:opacity-60"
         >
           Add recipient
         </button>
+        <span className="text-sm text-[var(--color-text-muted)]">
+          {rows.length} of {MAX_BATCH_RECIPIENTS} recipients
+        </span>
         <button
           type="button"
           onClick={getQuotes}

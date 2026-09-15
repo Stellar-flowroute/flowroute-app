@@ -1,6 +1,17 @@
 export type { StellarNetwork, FlowRouteConfig } from "./config.js";
 export { loadConfig, requireContractId } from "./config.js";
 export type { StellarAddress, Recipient, PayoutResult } from "./types.js";
+export type { ExecuteBatchValidationInput } from "./validation.js";
+export {
+  MAX_BATCH_RECIPIENTS,
+  assertPositiveAmount,
+  isValidContractAddress,
+  isValidStellarAddress,
+  sumRecipientAmounts,
+  validateExecuteBatchParams,
+  validateRecipients,
+  validateTotalSourceAmount,
+} from "./validation.js";
 export {
   i128ToScVal,
   scValToI128,
