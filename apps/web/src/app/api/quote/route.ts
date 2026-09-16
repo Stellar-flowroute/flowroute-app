@@ -1,6 +1,6 @@
 import { SoroswapSDK, SupportedNetworks, SupportedProtocols, TradeType } from "@soroswap/sdk";
 import { NextResponse, type NextRequest } from "next/server";
-import { describeQuoteError } from "@/lib/quote-error";
+import { buildQuoteErrorResponseBody, describeQuoteError } from "@/lib/quote-error";
 
 interface QuoteRequestBody {
   assetIn: string;
@@ -71,6 +71,10 @@ export async function POST(request: NextRequest) {
       upstreamMessage: info.message,
       upstreamDetails: info.details,
     });
-    return NextResponse.json({ error: info.message }, { status: 502 });
+    // TEMPORARY: Vercel's function-log UI isn't surfacing the console.error payload above, so the same
+    // already-sanitized fields are also returned in the response body to capture the real upstream
+    // failure from the browser/curl. Remove this `diagnostic` field once that's diagnosed -- it must
+    // never carry anything beyond what describeQuoteError already redacted.
+    return NextResponse.json(buildQuoteErrorResponseBody(info, requestId), { status: 502 });
   }
 }

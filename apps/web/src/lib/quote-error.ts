@@ -115,3 +115,34 @@ export function describeQuoteError(error: unknown): QuoteErrorInfo {
 
   return { message: "quote request failed" };
 }
+
+export interface QuoteErrorResponseBody {
+  error: string;
+  diagnostic: {
+    requestId: string;
+    upstreamStatus?: number;
+    upstreamCode?: string;
+    upstreamMessage: string;
+  };
+}
+
+/**
+ * Shapes an already-sanitized {@link QuoteErrorInfo} plus a request id into the exact, minimal JSON
+ * body the 502 response returns to the browser.
+ *
+ * Temporary: this exists so the real upstream failure can be captured from the browser/curl while
+ * Vercel's function-log UI isn't surfacing the equivalent console.error payload. It only ever reads
+ * `info.status`/`info.code`/`info.message` -- fields describeQuoteError has already redacted -- and
+ * deliberately omits `info.details`, to keep the client-facing payload as small as the diagnosis needs.
+ */
+export function buildQuoteErrorResponseBody(info: QuoteErrorInfo, requestId: string): QuoteErrorResponseBody {
+  return {
+    error: info.message,
+    diagnostic: {
+      requestId,
+      upstreamStatus: info.status,
+      upstreamCode: info.code,
+      upstreamMessage: info.message,
+    },
+  };
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { describeQuoteError } from "./quote-error";
+import { buildQuoteErrorResponseBody, describeQuoteError } from "./quote-error";
 
 test("extracts the message from a plain Error", () => {
   const info = describeQuoteError(new Error("network unreachable"));
@@ -90,4 +90,42 @@ test("redacts sensitive-looking keys nested inside details", () => {
   assert.ok(!serialized.includes("super-secret-soroswap-key"));
   assert.ok(!serialized.includes("session=abc"));
   assert.equal((info.details?.details as Record<string, unknown>).reason, "invalid pair");
+});
+
+test("builds a minimal diagnostic response body with only the allowlisted fields", () => {
+  const info = describeQuoteError({ statusCode: 429, message: "rate limited", error: "Too Many Requests" });
+
+  const body = buildQuoteErrorResponseBody(info, "req-123");
+
+  assert.deepEqual(body, {
+    error: "rate limited",
+    diagnostic: {
+      requestId: "req-123",
+      upstreamStatus: 429,
+      upstreamCode: undefined,
+      upstreamMessage: "rate limited",
+    },
+  });
+});
+
+test("the diagnostic response body never includes info.details or arbitrary upstream data", () => {
+  const axiosLikeError = Object.assign(new Error("Request failed with status code 500"), {
+    response: {
+      status: 500,
+      data: {
+        message: "internal error",
+        details: { authorization: "Bearer super-secret-soroswap-key", reason: "pool unavailable" },
+      },
+      config: { headers: { Authorization: "Bearer super-secret-soroswap-key" } },
+    },
+  });
+  const info = describeQuoteError(axiosLikeError);
+  assert.ok(info.details, "sanity check: describeQuoteError did extract details for this error");
+
+  const body = buildQuoteErrorResponseBody(info, "req-456");
+
+  const serialized = JSON.stringify(body);
+  assert.ok(!serialized.includes("super-secret-soroswap-key"));
+  assert.ok(!("details" in body.diagnostic));
+  assert.deepEqual(Object.keys(body.diagnostic).sort(), ["requestId", "upstreamCode", "upstreamMessage", "upstreamStatus"]);
 });
