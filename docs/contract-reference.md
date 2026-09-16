@@ -14,7 +14,7 @@ pub fn initialize(env: Env, admin: Address, swap_router: Address)
   - `admin`, the address that becomes the contract's admin.
   - `swap_router`, the Soroswap Router contract address that the contract calls for every swap in `execute_batch`.
 - **Returns**: nothing.
-- **Auth**: none required. The first caller to invoke this function sets the admin; there is no check that the caller and `admin` match.
+- **Auth**: requires authorization from the supplied `admin` address. The caller must be able to authorize as `admin` (Soroban `require_auth`), so an unrelated caller cannot claim an uninitialized deployment by naming someone else as admin.
 - **What it does**: sets the admin, stores the swap router that later `execute_batch` calls are made against, clears the paused flag, and resets the payout counter to zero.
 - **Reverts**: with `AlreadyInitialized` if the contract already has an admin set.
 
@@ -36,17 +36,24 @@ pub fn execute_batch(
   - `recipients`, a list of `Recipient` structs (see Types below), holding between 1 and `MAX_BATCH_RECIPIENTS` entries.
   - `total_source_amount`, the sum of every recipient's `amount_in`.
 - **Limits**:
-  - `MAX_BATCH_RECIPIENTS` is 6. A payout run accepts at most six recipients; a longer list is rejected by the contract's batch validation rather than partially executed. `packages/sdk` exports the same constant, and the web app enforces it in its recipient table and CSV import, so the limit is applied before a transaction is ever built.
-  - Every recipient's `amount_in` must be positive, and the sum of all `amount_in` values must equal `total_source_amount` exactly.
-  - Every recipient's `dest_min` must be positive. It is the absolute floor of the destination asset that recipient's swap has to deliver; the Soroswap Router enforces that floor and a swap that cannot meet it does not complete.
+  - `MAX_BATCH_RECIPIENTS` is 6. A payout run accepts at most six recipients; a longer list is rejected with `TooManyRecipients` rather than partially executed. `packages/sdk` exports the same constant, and the web app enforces it in its recipient table and CSV import, so the limit is applied before a transaction is ever built.
+  - `total_source_amount` must be positive, every recipient's `amount_in` must be positive, and the sum of all `amount_in` values must equal `total_source_amount` exactly.
+  - Every recipient's `dest_min` must be positive. It is the absolute floor of the destination asset that recipient's swap has to deliver. The contract does not simply trust the venue to enforce this floor: it measures its own balance delta after the venue call and, if a non-conforming venue reports success while delivering less than `dest_min`, aborts and rolls back the entire batch with `VenueUnderDelivered` rather than forwarding a short delivery (see `VenueUnderDelivered` below).
 - **Returns**: a `Vec<PayoutResult>`, one entry per recipient, in the same order as the input list.
 - **Auth**: requires authorization from `sender`.
-- **What it does**: pulls `total_source_amount` of `source_asset` from `sender`, then for each recipient attempts a swap through the Soroswap Router into that recipient's `dest_asset`, enforcing `dest_min` as the floor. Recipients whose swap completes receive their asset immediately. Recipients whose swap does not complete have their `amount_in` refunded to `sender` at the end of the run. One `payout` event is emitted per recipient and one `batch` event is emitted for the run.
+- **What it does**: pulls `total_source_amount` of `source_asset` from `sender`, then for each recipient attempts a swap through the Soroswap Router into that recipient's `dest_asset`, enforcing `dest_min` as the output floor. For each recipient, the contract measures its own destination-asset balance delta after the venue call rather than trusting a return value:
+  - If the venue call itself fails (an unreachable/misconfigured venue, an unresolvable pair, or the venue reverting the swap), that recipient's `amount_in` never left the contract and is refunded to `sender` at the end of the run; that recipient is recorded with `success: false` and `amount_delivered: 0`. This is an isolated, per-recipient outcome — it does not abort the batch, and every other recipient in the same run is still processed.
+  - If the venue call returns success but the measured amount received is below that recipient's `dest_min` (a non-conforming venue), the **entire invocation reverts** with `VenueUnderDelivered`. Soroban rolls back every transfer the batch has made so far, so no partial payout or venue output is left committed for any recipient in that run.
+  - Otherwise, the received amount (which meets or exceeds `dest_min`) is forwarded to the recipient and recorded with `success: true`.
+
+  One `payout` event is emitted per recipient and one `batch` event is emitted for the run.
 - **Reverts**:
   - `NotInitialized` if the contract has no admin set.
   - `Paused` if the contract is currently paused.
   - `EmptyBatch` if `recipients` is empty.
-  - `InvalidAmount` if `total_source_amount` is not positive, if any recipient's `amount_in` is not positive, if the sum of `amount_in` values overflows, if that sum does not equal `total_source_amount`, or if the payout counter would overflow.
+  - `TooManyRecipients` if `recipients` holds more than `MAX_BATCH_RECIPIENTS` (6) entries.
+  - `InvalidAmount` if `total_source_amount` is not positive, if any recipient's `amount_in` or `dest_min` is not positive, if the sum of `amount_in` values overflows or does not equal `total_source_amount`, or if the payout counter would overflow.
+  - `VenueUnderDelivered` if any recipient's swap reports success while delivering less than that recipient's `dest_min` — this aborts and rolls back the whole batch, not just that recipient.
 
 ### `set_paused`
 
@@ -105,8 +112,14 @@ The full `Error` enum from `error.rs`:
 | `EmptyBatch` | 6 |
 | `InvalidAmount` | 7 |
 | `SwapFailed` | 8 |
+| `VenueUnderDelivered` | 9 |
+| `TooManyRecipients` | 10 |
 
-`NotInitialized`, `AlreadyInitialized`, `Paused`, `EmptyBatch`, and `InvalidAmount` are raised directly by the functions documented above. The batch validation described under [`execute_batch`](#execute_batch) also rejects a recipient list longer than `MAX_BATCH_RECIPIENTS`, a non-positive `amount_in` or `dest_min`, and a `total_source_amount` that does not match the sum of the allocations. `SwapFailed` is raised internally when the call to the Soroswap Router does not succeed; this is what actually happens when a recipient's swap cannot meet its `dest_min` floor, since the router enforces that floor itself and reverts rather than returning a partial fill. `NotAdmin` and `SlippageExceeded` are declared in the enum but are not currently raised anywhere in the contract's own logic: admin authorization failures are caught by the Soroban auth framework before any contract code runs, not by an explicit `NotAdmin` panic, and `SlippageExceeded` appears only in the contract's test code, not in `lib.rs` or `aggregator.rs`.
+`NotInitialized`, `AlreadyInitialized`, `Paused`, `EmptyBatch`, `TooManyRecipients`, `InvalidAmount`, and `VenueUnderDelivered` are raised (via `panic_with_error!`) directly by the functions documented above, and each of these aborts and rolls back the whole transaction.
+
+`SwapFailed` is different: it exists as an internal `Result::Err` value inside `aggregator.rs` (returned when a pair cannot be resolved or the venue call itself reverts), but `execute_batch` always catches it and converts it into an isolated, refunded outcome for that one recipient — `SwapFailed` is never itself panicked or surfaced as a transaction-level revert. It must not be confused with `VenueUnderDelivered`: `SwapFailed` covers the venue failing outright (ordinary venue failure, isolated per recipient), while `VenueUnderDelivered` covers the venue reporting success but delivering less than the recipient's `dest_min` floor (a non-conforming venue), which aborts the entire batch rather than being isolated to that recipient.
+
+`NotAdmin` and `SlippageExceeded` are declared in the enum but are not currently raised anywhere in the contract's own logic: admin authorization failures are caught by the Soroban auth framework before any contract code runs, not by an explicit `NotAdmin` panic, and `SlippageExceeded` appears only in the contract's test code, not in `lib.rs` or `aggregator.rs`.
 
 ## Events
 
