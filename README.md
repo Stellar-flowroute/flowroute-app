@@ -14,6 +14,14 @@ Indexer API: https://flowroute-app.onrender.com (health check at `/health`)
 
 Both the web app and the indexer, including the worker that ingests new on-chain events, are live and running on free hosting tiers.
 
+## Indexer database / historical data
+
+The indexer's Postgres database currently runs on Supabase. The previous database, a Render-hosted Postgres instance, expired on Render's free tier and was replaced; the replacement database was initialized the same way any fresh database is, by the worker's existing schema bootstrap (`indexer/src/db.ts`'s `applySchema`, run automatically on worker startup), with no manual migration step.
+
+This database swap does not mean any blockchain history was lost. The FlowRoute contract's on-chain transactions and events remain on Stellar exactly as they were; what changed is which indexer database serves them to the API. The public Testnet RPC this indexer reads from only retains a rolling window of recent ledgers, and the four FlowRoute payout runs that existed before this migration fall outside that window. As a result, those specific historical `payout`/`batch` rows are not present in the rebuilt database and cannot currently be reconstructed from that RPC.
+
+The indexer does capture new payout events normally from the point of this migration forward. Until new payout runs occur, `/batches` and `/batches/:id` will correctly show no data for the pre-migration runs — this is expected, not a bug. The indexer's API should not be read as a complete historical archive of every FlowRoute payout; it reflects what the currently retained on-chain event window and the current database actually hold.
+
 ## Structure
 
 This is a pnpm workspace with three packages:

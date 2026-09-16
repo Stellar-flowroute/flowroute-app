@@ -71,9 +71,9 @@ SOROSWAP_API_KEY=
 
 ## `DATABASE_SSL`
 
-Render's managed Postgres requires SSL and rejects plain connections. A local Postgres, for example the Docker instance used in local setup, typically does not speak SSL at all.
+Managed Postgres providers commonly require SSL and reject plain connections. A local Postgres, for example the Docker instance used in local setup, typically does not speak SSL at all.
 
-Setting `DATABASE_SSL=1` makes `createPool` in `indexer/src/db.ts` pass `ssl: { rejectUnauthorized: false }` to the `pg` `Pool` config, matching Render's documented connection pattern. It is off by default, which is correct for local development. Set it to `1` in the indexer's Render environment.
+Setting `DATABASE_SSL=1` makes `createPool` in `indexer/src/db.ts` pass `ssl: { rejectUnauthorized: false }` to the `pg` `Pool` config. It is off by default, which is correct for local development. Set it to `1` for the indexer's hosted database (currently Supabase Postgres; see [Indexer database / historical data](../README.md#indexer-database--historical-data) in the root README for the current provider and why it changed).
 
 ## `FLOWROUTE_USE_CURL_FETCH`
 
