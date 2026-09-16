@@ -107,15 +107,30 @@ export function createApi(pool: Pool, server: rpc.Server): Hono {
   });
 
   app.get("/health", async (c) => {
-    const [lastProcessedLedger, latestLedger] = await Promise.all([
-      getCursor(pool),
-      server.getLatestLedger(),
-    ]);
-    const lagLedgers = lastProcessedLedger === null ? null : latestLedger.sequence - Number(lastProcessedLedger);
+    let lastProcessedLedger: bigint | null;
+    try {
+      lastProcessedLedger = await getCursor(pool);
+    } catch (error) {
+      console.error("health check: database unavailable", error);
+      return c.json({ status: "unavailable", reason: "database_unavailable" }, 503);
+    }
+
+    // The latest on-chain ledger is best-effort context, not a precondition for reporting healthy: the API
+    // serves already-ingested data from the database regardless of whether the RPC node is reachable right now.
+    let latestLedger: number | null = null;
+    let lagLedgers: number | null = null;
+    try {
+      const ledgerInfo = await server.getLatestLedger();
+      latestLedger = ledgerInfo.sequence;
+      lagLedgers = lastProcessedLedger === null ? null : latestLedger - Number(lastProcessedLedger);
+    } catch (error) {
+      console.warn("health check: rpc latest ledger unavailable", error);
+    }
+
     return c.json({
       status: "ok",
       lastProcessedLedger: lastProcessedLedger?.toString() ?? null,
-      latestLedger: latestLedger.sequence,
+      latestLedger,
       lagLedgers,
     });
   });
