@@ -79,12 +79,29 @@ interface Page {
 interface FakeServer {
   server: rpc.Server;
   calls: rpc.Server.GetEventsRequest[];
+  healthCalls: number;
 }
 
+interface Health {
+  oldestLedger: number;
+  latestLedger: number;
+}
+
+const PERMISSIVE_HEALTH: Health = { oldestLedger: 0, latestLedger: Number.MAX_SAFE_INTEGER };
+
 // The last scripted step repeats forever, so a single `error` step models a call that never succeeds.
-function createFakeServer(steps: Array<Page | Error>): FakeServer {
+// `health` models the RPC's retained ledger range as reported by getHealth; it defaults to a window wide enough
+// that it never constrains any existing test. Passing an array lets a test vary the reported range across
+// successive ingestOnce() calls, modelling the retention window sliding forward between attempts.
+function createFakeServer(
+  steps: Array<Page | Error>,
+  health: Health | Error | Array<Health | Error> = PERMISSIVE_HEALTH,
+): FakeServer {
   const calls: rpc.Server.GetEventsRequest[] = [];
+  const healthSteps = Array.isArray(health) ? health : [health];
   let index = 0;
+  let healthIndex = 0;
+  const state = { healthCalls: 0 };
   const server = {
     getEvents: async (options: rpc.Server.GetEventsRequest) => {
       calls.push(options);
@@ -95,8 +112,30 @@ function createFakeServer(steps: Array<Page | Error>): FakeServer {
       }
       return step;
     },
+    getHealth: async () => {
+      state.healthCalls += 1;
+      const step = healthSteps[Math.min(healthIndex, healthSteps.length - 1)]!;
+      healthIndex += 1;
+      if (step instanceof Error) {
+        throw step;
+      }
+      return {
+        status: "healthy",
+        latestLedger: step.latestLedger,
+        latestLedgerCloseTime: "0",
+        oldestLedger: step.oldestLedger,
+        oldestLedgerCloseTime: "0",
+        ledgerRetentionWindow: step.latestLedger - step.oldestLedger,
+      };
+    },
   } as unknown as rpc.Server;
-  return { server, calls };
+  return {
+    server,
+    calls,
+    get healthCalls() {
+      return state.healthCalls;
+    },
+  };
 }
 
 function payoutEvent(ledger: number, payoutId: number): rpc.Api.EventResponse {
@@ -327,4 +366,139 @@ test("a restart from the persisted cursor does not miss events", async () => {
   assert.equal(restarted.state.batchRows.size, 1);
   assert.equal(restarted.state.batchRows.get("12")![5], "1005"); // the event right after the restart point landed
   assert.equal(restarted.state.cursor, 1010n);
+});
+
+// --- RPC-retention-aware bootstrap ---------------------------------------------------------------------------
+
+test("A: a configured start ledger inside the RPC's retained range is used as-is", async () => {
+  const { pool, state } = createFakePool(); // fresh database, cursor null
+  const { server, calls } = createFakeServer(
+    [{ events: [payoutEvent(950, 1)], latestLedger: 2000, cursor: "c1" }],
+    { oldestLedger: 500, latestLedger: 2000 }, // config.startLedger (900) is inside 500..2000
+  );
+
+  await ingestOnce(config, pool, server);
+
+  assert.equal(calls[0]!.startLedger, 900); // the configured hint, untouched
+  assert.equal(state.cursor, 2000n);
+});
+
+test("B: a configured start ledger older than the retained floor bootstraps from the floor on a fresh database", async () => {
+  const { pool, state } = createFakePool(); // fresh database, cursor null
+  const { server, calls } = createFakeServer(
+    [{ events: [payoutEvent(1550, 1)], latestLedger: 2000, cursor: "c1" }],
+    { oldestLedger: 1500, latestLedger: 2000 }, // config.startLedger (900) is older than the floor
+  );
+
+  await ingestOnce(config, pool, server);
+
+  assert.equal(calls[0]!.startLedger, 1500); // bootstrapped to the retained floor, not the stale 900 hint
+  assert.equal(state.cursor, 2000n); // reflects only what was actually scanned, at/after the floor
+});
+
+test("C: an existing persisted cursor older than the retained floor fails loudly instead of jumping forward", async () => {
+  const { pool, state } = createFakePool(1000n); // existing database with a persisted cursor
+  const { server, calls } = createFakeServer(
+    [{ events: [payoutEvent(1550, 1)], latestLedger: 2000, cursor: "c1" }],
+    { oldestLedger: 1500, latestLedger: 2000 }, // the retention window has moved past the persisted cursor
+  );
+
+  await assert.rejects(() => ingestOnce(config, pool, server), /persisted cursor is at ledger 1000.*retained floor \(1500\)/);
+
+  assert.equal(calls.length, 0); // never even attempted to fetch events over the gap
+  assert.equal(state.cursor, 1000n); // untouched -- no silent skip ahead
+  assert.equal(state.cursorWrites.length, 0);
+});
+
+test("D: the retention window moving between attempts still converges to a valid start", async () => {
+  const { pool, state } = createFakePool(); // fresh database, cursor null
+  const fetchFailure = new Error("rpc unavailable");
+  const { server, calls } = createFakeServer(
+    [fetchFailure, fetchFailure, fetchFailure, { events: [payoutEvent(1650, 1)], latestLedger: 2500, cursor: "c1" }],
+    [
+      { oldestLedger: 1500, latestLedger: 2000 }, // first attempt's reported floor
+      { oldestLedger: 1600, latestLedger: 2500 }, // window has slid forward by the second attempt
+    ],
+  );
+
+  await assert.rejects(() => ingestOnce(config, pool, server, fastRetry)); // first pass: bootstrapped to 1500, then fetch fails
+  assert.equal(state.cursor, null);
+
+  await ingestOnce(config, pool, server, fastRetry); // second pass: cursor still null, re-bootstraps against the new floor
+
+  assert.equal(calls.length, 4); // 3 failed attempts from the first pass, then 1 successful attempt
+  assert.equal(calls[0]!.startLedger, 1500); // first pass used the floor reported at that time
+  assert.equal(calls[3]!.startLedger, 1600); // second pass used the floor reported this time, not the stale 1500
+  assert.equal(state.cursor, 2500n);
+});
+
+test("E: a persistently failing RPC bootstrap check stays bounded, not a tight retry loop", async () => {
+  const { pool, state } = createFakePool();
+  const fake = createFakeServer([], new Error("rpc down"));
+
+  await assert.rejects(() => ingestOnce(config, pool, fake.server, fastRetry), /rpc down/);
+
+  assert.equal(fake.healthCalls, 3); // bounded by maxFetchAttempts, not an unbounded spin (read after the call completes)
+  assert.equal(fake.calls.length, 0); // never got far enough to fetch events
+  assert.equal(state.cursor, null);
+});
+
+test("F: pagination continues from the dynamically selected valid start", async () => {
+  const { pool, state } = createFakePool();
+  const fullPage: Page = {
+    events: Array.from({ length: PAGE_SIZE }, (_, i) => payoutEvent(1550, i + 1)),
+    latestLedger: 2000,
+    cursor: "page-1",
+  };
+  const secondPage: Page = { events: [payoutEvent(1900, 999)], latestLedger: 2000, cursor: "page-2" };
+  const { server, calls } = createFakeServer([fullPage, secondPage], { oldestLedger: 1500, latestLedger: 2000 });
+
+  await ingestOnce(config, pool, server);
+
+  assert.equal(calls[0]!.startLedger, 1500); // first page starts at the dynamically resolved floor
+  assert.equal(calls[0]!.cursor, undefined);
+  assert.equal(calls[1]!.cursor, "page-1"); // continuation pages page by RPC cursor, not by re-deriving a start ledger
+  assert.equal(state.payoutRows.size, PAGE_SIZE + 1);
+  assert.equal(state.cursor, 2000n);
+});
+
+test("G: a fresh database produces a correct initial cursor after a successful bootstrap ingestion", async () => {
+  const { pool, state } = createFakePool();
+  const { server } = createFakeServer(
+    [{ events: [payoutEvent(1550, 1), batchEvent(1550, 1, 1)], latestLedger: 1800, cursor: "c1" }],
+    { oldestLedger: 1500, latestLedger: 2000 },
+  );
+
+  assert.equal(state.cursor, null); // fresh database precondition
+  await ingestOnce(config, pool, server);
+
+  assert.equal(state.cursor, 1800n);
+  assert.deepEqual(state.cursorWrites, [1800n]);
+  assert.equal(state.payoutRows.size, 1);
+  assert.equal(state.batchRows.size, 1);
+});
+
+test("H: bootstrapping past a stale start ledger never claims the skipped history was indexed", async () => {
+  const { pool, state } = createFakePool();
+  const { server } = createFakeServer(
+    [{ events: [payoutEvent(1550, 1)], latestLedger: 2000, cursor: "c1" }],
+    { oldestLedger: 1500, latestLedger: 2000 },
+  );
+
+  const warnings: unknown[][] = [];
+  const originalWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args);
+  };
+  try {
+    await ingestOnce(config, pool, server);
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  // The gap between the configured hint (900) and the resolved floor (1500) is explicitly logged as unrecoverable,
+  // not silently absorbed into a cursor that would claim it was scanned.
+  assert.ok(warnings.some((args) => String(args[0]).includes("not recoverable")));
+  assert.equal(state.cursor, 2000n); // the persisted cursor only covers what was actually scanned, from 1500 onward
+  assert.equal(state.payoutRows.size, 1); // only the one event actually returned by the RPC, nothing fabricated
 });

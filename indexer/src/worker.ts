@@ -185,10 +185,20 @@ function fetchEventsPage(
   return server.getEvents({ filters, startLedger, limit: EVENT_PAGE_SIZE });
 }
 
+// The public RPC only retains a rolling window of ledgers (exposed via getHealth as oldestLedger/latestLedger).
+// INDEXER_START_LEDGER is a bootstrap hint, not a guarantee: on a fresh database it names where ingestion would
+// ideally start, but if that ledger has already aged out of the RPC's retention window, the RPC will reject it
+// outright. In that case a fresh database bootstraps from the RPC's current retained floor instead, and events
+// between the configured hint and that floor are permanently unavailable from this endpoint -- they are not
+// silently treated as ingested, only skipped with an explicit, logged acknowledgement that they are unrecoverable.
+//
 // Cursor invariant: the persisted cursor is only written after a pass has fetched every page in its range, processed
 // every event in those pages, and paged contiguously. It only ever moves forward, and never past the highest ledger
 // the pass actually scanned. A latestLedger reported by RPC is not by itself proof that the ledgers below it were
-// ingested, so any failure leaves the cursor untouched and the next pass retries the same range.
+// ingested, so any failure leaves the cursor untouched and the next pass retries the same range. An existing,
+// persisted cursor is never advanced just because the RPC's retention window moved past it -- if the retention floor
+// has overtaken a persisted cursor, that is an unscanned gap the worker refuses to paper over, and it fails loudly
+// instead.
 export async function ingestOnce(
   config: IndexerConfig,
   pool: Pool,
@@ -199,7 +209,30 @@ export async function ingestOnce(
   const initialBackoffMs = options.initialBackoffMs ?? INITIAL_BACKOFF_MS;
 
   const cursorLedger = await getCursor(pool);
-  const startLedger = cursorLedger === null ? config.startLedger : Number(cursorLedger);
+  const health = await withRetry(() => server.getHealth(), maxFetchAttempts, initialBackoffMs);
+
+  let startLedger: number;
+  if (cursorLedger === null) {
+    if (config.startLedger < health.oldestLedger) {
+      console.warn(
+        `configured INDEXER_START_LEDGER (${config.startLedger}) is older than the RPC's retained floor ` +
+          `(${health.oldestLedger}); bootstrapping from the retained floor instead. Events before ledger ` +
+          `${health.oldestLedger} are not recoverable from this RPC endpoint.`,
+      );
+      startLedger = health.oldestLedger;
+    } else {
+      startLedger = config.startLedger;
+    }
+  } else {
+    startLedger = Number(cursorLedger);
+    if (startLedger < health.oldestLedger) {
+      throw new Error(
+        `persisted cursor is at ledger ${startLedger}, which is older than the RPC's currently retained floor ` +
+          `(${health.oldestLedger}); the RPC can no longer serve this range, so whether it holds events cannot be ` +
+          `verified. Refusing to silently skip ahead over an unscanned gap -- this requires manual intervention.`,
+      );
+    }
+  }
 
   let pagingCursor: string | undefined;
   let scannedThrough: number | null = null;

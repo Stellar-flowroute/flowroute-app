@@ -45,6 +45,15 @@ DATABASE_SSL=0
 INDEXER_START_LEDGER=0
 ```
 
+## `INDEXER_START_LEDGER`
+
+`INDEXER_START_LEDGER` is a bootstrap hint for a fresh database, not a guaranteed starting point. It only matters when the `cursor` table is empty (`getCursor` returns `null`) -- once a cursor is persisted, ingestion always resumes from there instead.
+
+The public RPC only retains a rolling window of ledgers, reported by `getHealth()` as `oldestLedger`/`latestLedger`. `ingestOnce` in `indexer/src/worker.ts` calls `getHealth()` at the start of every pass and compares it against the configured or persisted ledger:
+
+- **Fresh database** (`cursor` is `null`): if `INDEXER_START_LEDGER` is older than the RPC's current `oldestLedger`, the worker logs a warning and bootstraps from `oldestLedger` instead. Events older than that floor are not recoverable from this RPC endpoint -- the worker never claims they were ingested. `0` is a safe default for this value precisely because it always falls back to whatever the RPC currently retains; it does not mean "index from ledger zero."
+- **Existing database** (`cursor` is already populated): the persisted cursor is never advanced automatically just because the retention window moved past it. If the RPC's `oldestLedger` has overtaken the persisted cursor, the pass fails with an explicit error instead of silently skipping the gap -- this needs manual attention, since it means real history may be unrecoverable from this RPC.
+
 `apps/web/.env.example`:
 
 ```
